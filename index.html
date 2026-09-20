@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Minesweeper Ultimate</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; }
+        body { background: var(--bg); color: var(--text); font-family: var(--font); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; transition: background 0.3s; overflow: hidden; }
+        @keyframes rainbow { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+        body[data-theme="tacos"] { animation: rainbow 10s ease infinite; background-size: var(--bg-size); }
+        .container { background: var(--panel); padding: 24px; border-radius: var(--radius); border: 2px solid var(--border); box-shadow: 0 12px 40px rgba(0,0,0,0.4); max-width: 100%; z-index: 2; }
+        .header { display: flex; flex-direction: column; gap: 14px; width: 100%; margin-bottom: 20px; }
+        .row-controls { display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between; align-items: center; width: 100%; }
+        .group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; background: rgba(0,0,0,0.2); padding: 5px; border-radius: 12px; }
+        button, input { background: var(--cell); color: var(--text); border: 1px solid var(--border); padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; outline: none; font-family: inherit; transition: all 0.15s ease; font-weight: 600; }
+        button:hover { background: var(--cell-h); transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        button.active { background: var(--act-bg) !important; color: var(--act-text) !important; border-color: var(--act-bg) !important; box-shadow: 0 0 12px var(--act-glow); }
+        input[type="number"] { width: 55px; cursor: text; text-align: center; background: var(--cell); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 4px; }
+        .custom-inputs { display: none; gap: 6px; align-items: center; }
+        .custom-inputs.active { display: flex; }
+        .stats { display: flex; gap: 15px; font-variant-numeric: tabular-nums; font-weight: 600; font-size: 15px; background: var(--cell); padding: 6px 14px; border-radius: 8px; border: 1px solid var(--border); }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 10; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: var(--panel); border: 2px solid var(--border); padding: 24px; border-radius: var(--radius); width: 90%; max-width: 520px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .close-btn { background: transparent; border: none; font-size: 18px; color: var(--text); cursor: pointer; }
+        .setting-item { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; width: 100%; flex-wrap: wrap; gap: 10px; }
+        .setting-label { font-weight: 600; font-size: 14px; min-width: 100px; }
+        .slider-group { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+        .slider-group input[type="range"] { width: 140px; cursor: pointer; }
+        .grid-wrapper { max-width: 100%; overflow: auto; padding: 4px; }
+        .grid { display: grid; gap: 3px; }
+        .cell { width: 34px; height: 34px; background: var(--cell); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; cursor: pointer; border-radius: var(--c-rad); border: 1px solid var(--border); transition: all 0.1s ease; }
+        .cell:hover { background: var(--cell-h); }
+        .cell.opened { background: var(--cell-op); cursor: default; border-color: rgba(0,0,0,0.05); }
+        .cell.flagged { color: #ff453a; font-size: 14px; }
+        .cell.mine { background: rgba(255, 69, 58, 0.2); border-color: #ff453a; color: #ff453a; }
+        @keyframes pulse-hint { 0% { background-color:#10b981;box-shadow:0 0 4px #10b981;} 50% { background-color:#34d399;box-shadow:0 0 20px #34d399;} 100% { background-color:#10b981;box-shadow:0 0 4px #10b981;} }
+        .cell.hint-active { animation: pulse-hint 0.6s ease infinite !important; color: #fff !important; }
+        .c1 { color: #3b82f6; } .c2 { color: #10b981; } .c3 { color: #ef4444; } .c4 { color: #8b5cf6; } .c5 { color: #f59e0b; } .c6 { color: #06b6d4; }
+        [data-theme="dark"] { --bg: #12141c; --panel: #1e2230; --cell: #292f42; --cell-h: #373f59; --cell-op: #161924; --text: #ffffff; --border: #373f59; --radius: 16px; --c-rad: 6px; --font: system-ui, sans-serif; --act-bg: #3b82f6; --act-text: #ffffff; --act-glow: rgba(59,130,246,0.5); }
+        [data-theme="light"] { --bg: #e5e7eb; --panel: #ffffff; --cell: #f3f4f6; --cell-h: #e5e7eb; --cell-op: #d1d5db; --text: #1f2937; --border: #cbd5e1; --radius: 16px; --c-rad: 6px; --font: system-ui, sans-serif; --act-bg: #1f2937; --act-text: #ffffff; --act-glow: rgba(0,0,0,0.2); }
+        [data-theme="cyberpunk"] { --bg: #0b0114; --panel: #1a0033; --cell: #330066; --cell-h: #4c0099; --cell-op: #0d001a; --text: #00ffcc; --border: #ff007f; --radius: 12px; --c-rad: 4px; --font: 'Segoe UI', Impact, sans-serif; --act-bg: #ff007f; --act-text: #ffffff; --act-glow: rgba(255,0,127,0.8); }
+        [data-theme="underwater"] { --bg: #001a33; --panel: #003366; --cell: #004d99; --cell-h: #0066cc; --cell-op: #001122; --text: #33ffff; --border: #00a3cc; --radius: 20px; --c-rad: 8px; --font: sans-serif; --act-bg: #00ffff; --act-text: #001a33; --act-glow: rgba(0,255,255,0.6); }
+        [data-theme="fire"] { --bg: #1a0500; --panel: #330a00; --cell: #661400; --cell-h: #991f00; --cell-op: #140400; --text: #ffcc00; --border: #ff4500; --radius: 14px; --c-rad: 6px; --font: sans-serif; --act-bg: #ff4500; --act-text: #ffffff; --act-glow: rgba(255,69,0,0.7); }
+        [data-theme="tacos"] { --bg: linear-gradient(45deg, #ff007f, #ff00ff, #00ffff, #00ff00, #ffff00, #ff7f00, #ff0000); --bg-size: 400% 400%; --panel: rgba(20,20,20,0.9); --cell: #333333; --cell-h: #555555; --cell-op: #111111; --text: #ffffff; --border: #ff00ff; --radius: 16px; --c-rad: 6px; --font: 'Comic Sans MS', sans-serif; --act-bg: #ffff00; --act-text: #000000; --act-glow: rgba(255,255,0,0.8); }
+        [data-theme="retro"] { --bg: #008080; --panel: #c0c0c0; --cell: #c0c0c0; --cell-h: #d9d9d9; --cell-op: #b5b5b5; --text: #000000; --border: #808080; --radius: 0px; --c-rad: 0px; --font: 'Courier New', monospace; --act-bg: #808080; --act-text: #ffffff; --act-glow: transparent; }
+        [data-theme="retro"] .container, [data-theme="retro"] .modal { border: 3px outset #fff; } [data-theme="retro"] button, [data-theme="retro"] input { border: 2px outset #fff; border-radius: 0; } [data-theme="retro"] button.active { border: 2px inset #fff; background: #808080 !important; color: #fff !important; } [data-theme="retro"] .grid { gap: 0; border: 2px inset #fff; } [data-theme="retro"] .cell { border: 2px outset #fff; border-radius: 0; } [data-theme="retro"] .cell.opened { border: 1px solid #808080; } [data-theme="retro"] .stats, [data-theme="retro"] .audio-panel { border: 2px inset #fff; border-radius: 0; background: #000; color: #ff0000; font-family: monospace; font-size: 18px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="row-controls">
+            <div class="stats">
+                <div>🚩 <span id="flag-count">0</span></div>
+                <div>⏱️ <span id="timer">0</span></div>
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button id="hint-btn" style="background:#10b981; color:#fff; border-color:#059669;">💡 <span id="hint-count">3</span></button>
+                <button id="restart-btn">🔄</button>
+                <button id="settings-btn" style="background:var(--cell-h);">⚙️</button>
+            </div>
+        </div>
+    </div>
+    <div class="grid-wrapper"><div id="grid" class="grid"></div></div>
+</div>
+
+<div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>⚙️ Настройки</h3>
+            <button class="close-btn" id="close-settings-btn">✕</button>
+        </div>
+        <div class="setting-item">
+            <span class="setting-label">Сложность:</span>
+            <div class="group" id="level-group">
+                <button data-val="beginner">Новичок</button>
+                <button data-val="amateur" class="active">Любитель</button>
+                <button data-val="pro">Профи</button>
+                <button data-val="custom">Свой</button>
+            </div>
+        </div>
+        <div class="setting-item custom-inputs" id="custom-inputs">
+            <span class="setting-label">Размер и мины:</span>
+            <div style="display:flex; gap:6px; align-items:center;">
+                <input type="number" id="custom-rows" min="5" max="50" value="10">
+                <span>x</span>
+                <input type="number" id="custom-cols" min="5" max="50" value="10">
+                <span>Мин:</span>
+                <input type="number" id="custom-mines" min="1" max="1000" value="15">
+            </div>
+        </div>
+        <div class="setting-item">
+            <span class="setting-label">Тема:</span>
+            <div class="group" id="theme-group">
+                <button data-val="dark" class="active">Тёмная</button>
+                <button data-val="light">Светлая</button>
+                <button data-val="cyberpunk">Киберпанк</button>
+                <button data-val="underwater">Подводный</button>
+                <button data-val="fire">Огненный</button>
+                <button data-val="tacos">Running Tacos 🌈</button>
+                <button data-val="retro">Ретро</button>
+            </div>
+        </div>
+        <div class="setting-item" style="flex-direction: column; align-items: flex-start; gap: 10px;">
+            <div style="display:flex; justify-content:space-between; width:100%; align-items:center;">
+                <span class="setting-label">Звуковое сопровождение:</span>
+                <button id="music-toggle-btn">🔇 Звук выкл.</button>
+            </div>
+            <div class="slider-group" style="width:100%;">
+                <span>🎵 Музыка:</span>
+                <input type="range" id="volume-music" min="0" max="100" value="30" style="flex-grow:1;">
+            </div>
+            <div class="slider-group" style="width:100%;">
+                <span>💥 Эффекты:</span>
+                <input type="range" id="volume-effects" min="0" max="100" value="50" style="flex-grow:1;">
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="taco-rain-container" style="position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:1; overflow:hidden;"></div>
+<script>
+    const CONFIGS = { beginner: { rows: 9, cols: 9, mines: 10 }, amateur: { rows: 16, cols: 16, mines: 40 }, pro: { rows: 16, cols: 30, mines: 99 } };
+    let currentLevel = 'amateur', rows, cols, mineCount, gridData = [], firstClick = true, timerInterval = null, time = 0, gameOver = false, hintsLeft = 3, currentTheme = 'dark';
+    const gridEl = document.getElementById('grid'), flagCountEl = document.getElementById('flag-count'), timerEl = document.getElementById('timer'), restartBtn = document.getElementById('restart-btn'), hintBtn = document.getElementById('hint-btn'), hintCountEl = document.getElementById('hint-count'), settingsBtn = document.getElementById('settings-btn'), closeSettingsBtn = document.getElementById('close-settings-btn'), modalOverlay = document.getElementById('modal-overlay'), customInputs = document.getElementById('custom-inputs'), musicToggleBtn = document.getElementById('music-toggle-btn'), volMusicSlider = document.getElementById('volume-music'), volEffectsSlider = document.getElementById('volume-effects'), tacoContainer = document.getElementById('taco-rain-container');
+    let audioCtx = null, musicEnabled = false, synthInterval = null, volMusic = 0.3, volEffects = 0.5, tacoInterval = null;
+    const melody = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88, 523.25];
+    
+    function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    function playTone(freq, type, duration, baseVol, isEffect = true) { if (!musicEnabled) return; initAudio(); const currentVol = isEffect ? (baseVol * volEffects) : (baseVol * volMusic); if (currentVol <= 0) return; const osc = audioCtx.createOscillator(), gain = audioCtx.createGain(); osc.type = type; osc.frequency.value = freq; gain.gain.setValueAtTime(currentVol, audioCtx.currentTime); gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration); osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + duration); }
+    function startMusic() { if (synthInterval) clearInterval(synthInterval); synthInterval = setInterval(() => { if (!musicEnabled || gameOver) return; let note = melody[Math.floor(Math.random() * melody.length)]; if (currentTheme === 'tacos') { if (Math.random() > 0.2) playTone(note, 'square', 0.15, 0.04, false); if (Math.random() > 0.6) playTone(note * 1.5, 'triangle', 0.2, 0.05, false); } else { if (Math.random() > 0.3) playTone(note / 2, 'triangle', 0.6, 0.08, false); if (Math.random() > 0.5) playTone(note * (Math.random() > 0.8 ? 2 : 1), 'square', 0.3, 0.03, false); } }, 250); }
+    function startTacoRain() { if (tacoInterval) clearInterval(tacoInterval); tacoContainer.innerHTML = ''; tacoInterval = setInterval(() => { if (currentTheme !== 'tacos' || gameOver) return; const taco = document.createElement('div'); taco.textContent = '🌮'; taco.style.position = 'absolute'; taco.style.left = Math.random() * 100 + 'vw'; taco.style.top = '-40px'; taco.style.fontSize = Math.floor(Math.random() * 20 + 20) + 'px'; taco.style.pointerEvents = 'auto'; taco.style.cursor = 'pointer'; taco.style.transition = 'transform 4s linear'; const angle = Math.floor(Math.random() * 360); taco.style.transform = `translateY(0) rotate(${angle}deg)`; taco.addEventListener('mousedown', (e) => { e.stopPropagation(); playTone(600, 'sine', 0.08, 0.2, true); taco.textContent = '✨'; setTimeout(() => taco.remove(), 150); }); tacoContainer.appendChild(taco); setTimeout(() => { taco.style.transform = `translateY(110vh) rotate(${angle + 180}deg)`; }, 50); setTimeout(() => { if (taco.parentNode) taco.remove(); }, 4100); }, 600); }
+    function updateConfig() { if (currentLevel === 'custom') { rows = parseInt(document.getElementById('custom-rows').value) || 10; cols = parseInt(document.getElementById('custom-cols').value) || 10; let maxMines = Math.floor((rows * cols) * 0.7), desiredMines = parseInt(document.getElementById('custom-mines').value) || 15; if (desiredMines > maxMines) { desiredMines = maxMines; document.getElementById('custom-mines').value = maxMines; } mineCount = desiredMines; } else { rows = CONFIGS[currentLevel].rows; cols = CONFIGS[currentLevel].cols; mineCount = CONFIGS[currentLevel].mines; } }
+    function initGame() { clearInterval(timerInterval); time = 0; timerEl.textContent = time; gameOver = false; firstClick = true; updateConfig(); flagCountEl.textContent = mineCount; hintsLeft = 3; hintCountEl.textContent = hintsLeft; hintBtn.style.opacity = "1"; gridEl.style.gridTemplateRows = "repeat(" + rows + ", 34px)"; gridEl.style.gridTemplateColumns = "repeat(" + cols + ", 34px)"; gridEl.innerHTML = ''; gridData = Array(rows).fill(null).map(() => Array(cols).fill(null).map(() => ({ isMine: false, isOpened: false, isFlagged: false, neighborMines: 0 }))); for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const cell = document.createElement('div'); cell.classList.add('cell'); cell.addEventListener('click', () => handleLeftClick(r, c)); cell.addEventListener('contextmenu', (e) => { e.preventDefault(); handleRightClick(r, c); }); gridEl.appendChild(cell); } } if (musicEnabled) startMusic(); if (currentTheme === 'tacos') startTacoRain(); else { clearInterval(tacoInterval); tacoContainer.innerHTML = ''; } }
+    function generateMines(startRow, startCol) { let placed = 0; while (placed < mineCount) { const r = Math.floor(Math.random() * rows), c = Math.floor(Math.random() * cols); if (!gridData[r][c].isMine && (Math.abs(r - startRow) > 1 || Math.abs(c - startCol) > 1)) { gridData[r][c].isMine = true; placed++; } } for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { if (gridData[r][c].isMine) continue; let count = 0; for (let dr = -1; dr <= 1; dr++) { for (let dc = -1; dc <= 1; dc++) { if (gridData[r + dr]?.[c + dc]?.isMine) count++; } } gridData[r][c].neighborMines = count; } } }
+    function useHint() { if (gameOver || hintsLeft <= 0 || firstClick) return; let boundaryCells = []; for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { if (gridData[r][c].isOpened) { for (let dr = -1; dr <= 1; dr++) { for (let dc = -1; dc <= 1; dc++) { const nr = r + dr, nc = c + dc; if (gridData[nr]?.[nc] && !gridData[nr][nc].isOpened && !gridData[nr][nc].isFlagged && !gridData[nr][nc].isMine) boundaryCells.push({r: nr, c: nc}); } } } } } if (boundaryCells.length === 0) { for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { if (!gridData[r][c].isOpened && !gridData[r][c].isFlagged && !gridData[r][c].isMine) boundaryCells.push({r: r, c: c}); } } } if (boundaryCells.length > 0) { const choice = boundaryCells[Math.floor(Math.random() * boundaryCells.length)]; playTone(587.33, 'sine', 0.15, 0.15, true); highlightHint(choice.r, choice.c); } else { alert("Безопасных клеток нет!"); } }
+    function highlightHint(r, c) { hintsLeft--; hintCountEl.textContent = hintsLeft; if (hintsLeft === 0) hintBtn.style.opacity = "0.5"; const cellEl = gridEl.children[r * cols + c]; cellEl.classList.add('hint-active'); setTimeout(() => { cellEl.classList.remove('hint-active'); }, 1800); }
+    function handleLeftClick(r, c) { if (gameOver || gridData[r][c].isFlagged || gridData[r][c].isOpened) return; if (firstClick) { firstClick = false; generateMines(r, c); timerInterval = setInterval(() => { time++; timerEl.textContent = time; }, 1000); } if (gridData[r][c].isMine) { playTone(80, 'sawtooth', 0.8, 0.25, true); revealAll(false); return; } playTone(880, 'sine', 0.04, 0.05, true); revealCell(r, c); checkWin(); }
+    function revealCell(r, c) { if (r < 0 || r >= rows || c < 0 || c >= cols) return; const data = gridData[r][c]; if (data.isOpened || data.isFlagged) return; data.isOpened = true; const cellEl = gridEl.children[r * cols + c]; cellEl.classList.add('opened'); if (data.neighborMines > 0) { cellEl.textContent = data.neighborMines; cellEl.classList.add(`c${data.neighborMines}`); } else { for (let dr = -1; dr <= 1; dr++) { for (let dc = -1; dc <= 1; dc++) { revealCell(r + dr, c + dc); } } } }
+    function handleRightClick(r, c) { if (gameOver || gridData[r][c].isOpened) return; const data = gridData[r][c], cellEl = gridEl.children[r * cols + c]; data.isFlagged = !data.isFlagged; cellEl.classList.toggle('flagged'); cellEl.textContent = data.isFlagged ? '🚩' : ''; playTone(data.isFlagged ? 440 : 330, 'triangle', 0.06, 0.08, true); const currentFlags = Object.values(gridData.flat()).filter(x => x.isFlagged).length; flagCountEl.textContent = Math.max(0, mineCount - currentFlags); }
+    function revealAll(isWin) { gameOver = true; clearInterval(timerInterval); clearInterval(synthInterval); if (tacoInterval) clearInterval(tacoInterval); for (let r = 0; r < rows; r++) { for (let c = 0; c < cols; c++) { const data = gridData[r][c], cellEl = gridEl.children[r * cols + c]; if (data.isMine) { if (isWin) { cellEl.textContent = '🚩'; cellEl.classList.add('flagged'); } else if (!data.isFlagged) { cellEl.textContent = '💣'; cellEl.classList.add('mine'); } } } } if (isWin) { flagCountEl.textContent = 0; playTone(523.25, 'sine', 0.2, 0.15, true); setTimeout(() => playTone(659.25, 'sine', 0.2, 0.15, true), 150); setTimeout(() => playTone(783.99, 'sine', 0.4, 0.15, true), 300); setTimeout(() => alert('Победа! 😎'), 500); } }
+    function checkWin() { const unopened = Object.values(gridData.flat()).filter(x => !x.isOpened); if (unopened.length === mineCount) revealAll(true); }
+    settingsBtn.addEventListener('click', () => { modalOverlay.classList.add('active'); });
+    closeSettingsBtn.addEventListener('click', () => { modalOverlay.classList.remove('active'); });
+    modalOverlay.addEventListener('click', (e) => { if(e.target === modalOverlay) modalOverlay.classList.remove('active'); });
+    document.getElementById('level-group').addEventListener('click', (e) => { if (e.target.tagName !== 'BUTTON') return; document.querySelectorAll('#level-group button').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); currentLevel = e.target.dataset.val; customInputs.classList.toggle('active', currentLevel === 'custom'); initGame(); });
+    document.getElementById('theme-group').addEventListener('click', (e) => { if (e.target.tagName !== 'BUTTON') return; document.querySelectorAll('#theme-group button').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); currentTheme = e.target.dataset.val; document.body.setAttribute('data-theme', currentTheme); if (currentTheme === 'tacos') startTacoRain(); else { clearInterval(tacoInterval); tacoContainer.innerHTML = ''; } if (musicEnabled) startMusic(); });
+    ['custom-rows', 'custom-cols', 'custom-mines'].forEach(id => { document.getElementById(id).addEventListener('change', () => { if(currentLevel === 'custom') initGame(); }); });
+    restartBtn.addEventListener('click', initGame); hintBtn.addEventListener('click', useHint);
+    musicToggleBtn.addEventListener('click', () => { musicEnabled = !musicEnabled; initAudio(); musicToggleBtn.textContent = musicEnabled ? "🔊 Звук вкл." : "🔇 Звук выкл."; if (musicEnabled) { startMusic(); playTone(440, 'sine', 0.2, 0.1); } else { clearInterval(synthInterval); } });
+    volMusicSlider.addEventListener('input', (e) => { volMusic = parseInt(e.target.value) / 100; });
+    volEffectsSlider.addEventListener('input', (e) => { volEffects = parseInt(e.target.value) / 100; });
+    document.body.setAttribute('data-theme', 'dark'); initGame();
+</script>
+</body>
+</html>
